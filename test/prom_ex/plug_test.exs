@@ -20,25 +20,6 @@ defmodule PromEx.PlugTest do
     end
   end
 
-  defmodule AdditionalPromExSetUp do
-    use PromEx, otp_app: :prom_ex
-
-    alias PromEx.Plugins.{Application, Beam}
-
-    @impl true
-    def plugins do
-      [
-        {Application, otp_app: :prom_ex},
-        {Beam, poll_rate: 500}
-      ]
-    end
-
-    @impl true
-    def dashboards do
-      [{:prom_ex, "application.json"}]
-    end
-  end
-
   setup_all do
     System.put_env("GIT_SHA", "395459c")
     System.put_env("GIT_AUTHOR", "Alex")
@@ -83,27 +64,6 @@ defmodule PromEx.PlugTest do
              end) =~ "Attempted to fetch metrics from Elixir.PromEx.PlugTest.DefaultPromExSetUp"
     end
 
-    @tag :capture_log
-    test "should return a 503 if all metrics supervisors are not accessible" do
-      stop_supervised(DefaultPromExSetUp)
-      stop_supervised(AdditionalPromExSetUp)
-
-      opts = PromEx.Plug.init(prom_ex_module: [DefaultPromExSetUp, AdditionalPromExSetUp])
-      conn = conn(:get, "/metrics")
-      response = PromEx.Plug.call(conn, opts)
-
-      assert response.status == 503
-      assert response.resp_body == "Service Unavailable"
-
-      assert capture_log(fn ->
-               PromEx.Plug.call(conn, opts)
-             end) =~ "Attempted to fetch metrics from Elixir.PromEx.PlugTest.DefaultPromExSetUp"
-
-      assert capture_log(fn ->
-               PromEx.Plug.call(conn, opts)
-             end) =~ "Attempted to fetch metrics from Elixir.PromEx.PlugTest.AdditionalPromExSetUp"
-    end
-
     test "should return the metrics if the supervisor is running at the default path" do
       opts = PromEx.Plug.init(prom_ex_module: DefaultPromExSetUp)
       conn = conn(:get, "/metrics")
@@ -111,19 +71,6 @@ defmodule PromEx.PlugTest do
 
       assert response.status == 200
       assert response.resp_body =~ "prom_ex_application_primary_info"
-      refute response.resp_body =~ "prom_ex_beam_stats"
-      assert response.resp_body =~ "395459c"
-      assert response.resp_body =~ "Alex"
-    end
-
-    test "should return the metrics if all supervisors are running at the default path" do
-      opts = PromEx.Plug.init(prom_ex_module: [DefaultPromExSetUp, AdditionalPromExSetUp])
-      conn = conn(:get, "/metrics")
-      response = PromEx.Plug.call(conn, opts)
-
-      assert response.status == 200
-      assert response.resp_body =~ "prom_ex_application_primary_info"
-      assert response.resp_body =~ "prom_ex_beam_stats"
       assert response.resp_body =~ "395459c"
       assert response.resp_body =~ "Alex"
     end
@@ -135,7 +82,6 @@ defmodule PromEx.PlugTest do
 
       assert response.status == 200
       assert response.resp_body =~ "prom_ex_application_primary_info"
-      refute response.resp_body =~ "prom_ex_beam_stats"
       assert response.resp_body =~ "395459c"
       assert response.resp_body =~ "Alex"
     end
@@ -151,7 +97,6 @@ defmodule PromEx.PlugTest do
 
   def set_up_app_env(context) do
     Application.put_env(:prom_ex, DefaultPromExSetUp, metrics_server: :disabled)
-    Application.put_env(:prom_ex, AdditionalPromExSetUp, metrics_server: :disabled)
 
     context
   end
@@ -160,7 +105,6 @@ defmodule PromEx.PlugTest do
     # Starting PromEx module and sleeping for a short while to give the applications plugin
     # enough time to populate some metrics
     start_supervised(DefaultPromExSetUp)
-    start_supervised(AdditionalPromExSetUp)
     Process.sleep(500)
 
     context
