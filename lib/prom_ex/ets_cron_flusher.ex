@@ -64,6 +64,6 @@ defmodule PromEx.ETSCronFlusher do
   end
 
   defp schedule_flush do
-    Process.send_after(self(), :flush_ets, 7_500)
+    Process.send_after(self(), :flush_ets, 15_000)
   end
 end
